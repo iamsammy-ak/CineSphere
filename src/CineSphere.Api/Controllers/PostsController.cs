@@ -1,6 +1,8 @@
 using CineSphere.Application.Common.Interfaces;
+using CineSphere.Application.Features.Posts.Commands.CreateListPost;
 using CineSphere.Application.Features.Posts.Commands.CreateMovieLogPost;
 using CineSphere.Application.Features.Posts.Commands.CreateStatusPost;
+using CineSphere.Application.Features.Posts.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +23,14 @@ public class PostsController : ControllerBase
         _currentUserService = currentUserService;
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetPost(Guid id)
+    {
+        var result = await _mediator.Send(new GetPostByIdQuery(id));
+        if (result == null) return NotFound();
+        return Ok(result);
+    }
+
     [HttpPost("movie-log")]
     public async Task<IActionResult> CreateMovieLog([FromBody] CreateMovieLogPostRequest request)
     {
@@ -38,7 +48,7 @@ public class PostsController : ControllerBase
         );
 
         var result = await _mediator.Send(command);
-        return CreatedAtAction(nameof(CreateMovieLog), new { id = result.Id }, result);
+        return CreatedAtAction(nameof(GetPost), new { id = result.Id }, result);
     }
 
     [HttpPost("status")]
@@ -49,7 +59,25 @@ public class PostsController : ControllerBase
 
         var command = new CreateStatusPostCommand(userId, request.Content, false);
         var result = await _mediator.Send(command);
-        return CreatedAtAction(nameof(CreateStatus), new { id = result.Id }, result);
+        return CreatedAtAction(nameof(GetPost), new { id = result.Id }, result);
+    }
+
+    [HttpPost("list")]
+    public async Task<IActionResult> CreateListPost([FromBody] CreateListPostRequest request)
+    {
+        var userId = _currentUserService.GetUserId();
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        try
+        {
+            var command = new CreateListPostCommand(userId, request.ListId, request.Content, request.IsSpoiler);
+            var result = await _mediator.Send(command);
+            return CreatedAtAction(nameof(GetPost), new { id = result.Id }, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 }
 
@@ -66,4 +94,11 @@ public class CreateMovieLogPostRequest
 public class CreateStatusPostRequest
 {
     public string Content { get; set; } = string.Empty;
+}
+
+public class CreateListPostRequest
+{
+    public Guid ListId { get; set; }
+    public string? Content { get; set; }
+    public bool IsSpoiler { get; set; }
 }
