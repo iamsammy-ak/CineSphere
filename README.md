@@ -1,138 +1,219 @@
 # CineSphere
 
-> An advanced social network for cinephiles — build your film diary, share reviews, follow friends, and explore a unified social feed. Think Letterboxd meets Instagram, built on ASP.NET Core.
+> **Cinematic social network for cinephiles** — Log movies, write reviews, follow filmmakers, like & comment on posts. Think Letterboxd meets Instagram, built with ASP.NET Core + Next.js.
+
+
+![CineSphere Banner](https://img.shields.io/badge/.NET-8.0-512BD4?logo=.net) ![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql) ![License](https://img.shields.io/badge/License-MIT-green)
+
+---
+
+## 🎯 Features
+
+| Feature | Description |
+|---|---|
+| 🎬 **Film Logging** | Log any movie from TMDB with a 10-star rating + optional short review |
+| ✍️ **Reviews** | Mark reviews as spoilers — blurred until revealed |
+| 📰 **Social Feed** | Unified feed with MovieLogs, StatusPosts, and ListPosts |
+| ❤️ **Reactions** | React with ❤️ Like, 🍿 Popcorn, 🧠 MindBlown |
+| 💬 **Comments** | Inline threaded comments on every post |
+| 👥 **Follow System** | Follow/unfollow users, see followers & following lists |
+| 🔍 **TMDB Search** | Search the world's largest film database with poster art |
+| 📋 **Custom Lists** | Curate personal film lists and share them to your feed |
+| 🌙 **Dark UI** | Letterboxd-inspired dark cinematic theme |
+| 🔐 **JWT Auth** | Secure register/login with 7-day JWT tokens |
+| 🐳 **Docker** | One-command `docker-compose up` for full stack |
+
+---
 
 ## 🏗️ Architecture
 
 ```
-CineSphere.Api          — Controllers, DI wiring, JWT auth
-CineSphere.Application  — CQRS commands/queries (MediatR), DTOs, interfaces
-CineSphere.Domain      — Entities, enums (clean domain model, no framework deps)
-CineSphere.Infrastructure — EF Core DbContext, TMDB API service
+┌──────────────────────────────────────────────────────┐
+│                    CineSphere.Web                    │
+│     Next.js 15 · React Query · Zustand · Tailwind   │
+├──────────────────────────────────────────────────────┤
+│                    CineSphere.Api                   │
+│  ASP.NET Core 8 · JWT Auth · Controllers · Swagger   │
+├──────────────────────────────────────────────────────┤
+│                 CineSphere.Application              │
+│  CQRS + MediatR · DTOs · Interfaces · Clean Domain  │
+├──────────────────────────────────────────────────────┤
+│                 CineSphere.Infrastructure           │
+│    EF Core · PostgreSQL (TPH) · TMDB API Service    │
+├──────────────────────────────────────────────────────┤
+│                    CineSphere.Domain                │
+│           Entities · Enums · Domain Events         │
+└──────────────────────────────────────────────────────┘
 ```
 
-## 🔧 Tech Stack
+### Database Design (Postgres + EF Core TPH)
 
-- **ASP.NET Core 8** — Minimal API with controllers
-- **Clean Architecture** — Domain / Application / Infrastructure layers
-- **CQRS + MediatR** — Every read/write is a command or query handler
-- **Entity Framework Core** — PostgreSQL via Npgsql, TPH inheritance on Post entity
-- **Identity** — JWT Bearer auth with full user management
-- **TMDB API** — Movie metadata, posters, search
+All 3 `Post` subtypes live in a single **Posts** table via Table-Per-Hierarchy (TPH) inheritance with a discriminator column `PostType`.
 
-## 📁 Domain Entities
+---
 
-| Entity | Description |
-|---|---|
-| `ApplicationUser` | Extends `IdentityUser` — DisplayName, Bio, AvatarUrl, navigation props |
-| `Post` (abstract) | Base: `UserId`, `CreatedAt`, `Content`, `IsSpoiler`, `CommentCount`, `ReactionCount` |
-| `MovieLogPost` | Inherits `Post` + `TmdbMovieId`, `Rating`, `WatchedDate`, `IsRewatch` |
-| `StatusPost` | Inherits `Post` — general status/activity updates |
-| `ListPost` | Inherits `Post` + FK to `CustomList` |
-| `CustomList` | User-curated film lists |
-| `Comment` | Threaded comments with `PostId`, `UserId`, `Text`, `CreatedAt` |
-| `Reaction` | `PostId`, `UserId`, `ReactionType` (`Like`, `Popcorn`, `MindBlown`) — unique per user/post |
-| `UserFollow` | Many-to-many self-referencing join for followers/following |
+## 🚀 Quick Start
 
-## 🔌 API Endpoints
-
-### Feed
-- `GET /api/feed?page=1&pageSize=20` — Social feed (posts from self + followed users, ordered by newest)
-
-### Posts
-- `GET /api/posts/{id}` — Single post with TMDB movie data
-- `POST /api/posts/movie-log` — Log a watched movie
-- `POST /api/posts/status` — Post a status update
-- `POST /api/posts/list` — Share a list to the feed
-
-### Movies
-- `GET /api/movies/search?query=...&page=1` — Search TMDB for movies
-
-### Reactions
-- `POST /api/reactions/toggle` — Toggle reaction (same type = remove, diff type = update, none = add)
-
-### Comments
-- `POST /api/comments` — Add a comment (increments `CommentCount`)
-
-### Follows
-- `POST /api/follows` — Toggle follow/unfollow
-
-### Lists
-- `POST /api/lists` — Create a custom film list
-
-## 🗄️ Database Design
-
-- **TPH Inheritance** — All 3 `Post` subtypes live in a single `Posts` table with a `PostType` discriminator column
-- **Reactions** have a unique composite index on `(PostId, UserId)` — prevents duplicate reactions
-- **UserFollows** uses composite PK `(FollowerId, FolloweeId)` for the many-to-many self-referencing relationship
-
-## 🚀 Getting Started
-
-### 1. Clone & configure
+### 1. Clone
 
 ```bash
 git clone https://github.com/iamsammy-ak/CineSphere.git
 cd CineSphere
 ```
 
-### 2. Add secrets to `src/CineSphere.Api/appsettings.json`
+### 2. Docker (Recommended)
+
+```bash
+# Get your TMDB API key from https://www.themoviedb.org/settings/api
+export TMDB_API_KEY="your_tmdb_api_key"
+
+docker-compose up --build
+# API  → http://localhost:5001/swagger
+# Web  → http://localhost:3000
+```
+
+### 3. Manual Run
+
+```bash
+# Backend
+cd src/CineSphere.Api
+dotnet ef migrations add InitialCreate \
+  --project ../CineSphere.Infrastructure \
+  --startup-project .
+dotnet run
+
+
+# Frontend
+cd src/cinesphere-web
+npm install
+npm run dev
+```
+
+### 4. Get TMDB API Key
+
+Sign up at [themoviedb.org](https://www.themoviedb.org/settings/api) — free. Add to `appsettings.json` or environment:
 
 ```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=cinesphere;Username=postgres;Password=YOUR_PASSWORD"
-  },
-  "Tmdb": {
-    "ApiKey": "YOUR_TMDB_API_KEY"
-  }
-}
+{ "Tmdb": { "ApiKey": "YOUR_KEY" } }
 ```
 
-Get a TMDB API key at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
 
-### 3. Run migrations
+---
+
+## 📡 API Endpoints
+
+### Auth
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/auth/register` | Register with email + password |
+| POST | `/api/auth/login` | Login → returns JWT |
+
+### Feed
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/feed` | Social feed — paginated, all post types |
+| GET | `/api/posts/{id}` | Single post with TMDB data |
+
+### Posts
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/posts/movie-log` | Log a watched film (rating + review) |
+| POST | `/api/posts/status` | Post a status update |
+| POST | `/api/posts/list` | Share a list to the feed |
+
+### Movies
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/movies/search?query=...` | Search TMDB |
+
+### Reactions
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/reactions/toggle` | Toggle reaction (toggle off, swap type, or add) |
+
+### Comments
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/comments` | Add comment to a post |
+
+### Follows
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/follows` | Toggle follow/unfollow |
+| GET | `/api/follows/{userId}/follow-status` | Get follow stats |
+
+
+### Users
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/users/{id}` | Get user profile |
+| GET | `/api/users/{id}/posts` | User's posts |
+| GET | `/api/users/{id}/followers` | Followers list |
+| GET | `/api/users/{id}/following` | Following list |
+
+---
+
+## 🧪 E2E Tests (Playwright)
 
 ```bash
-dotnet ef migrations add InitialCreate --project src/CineSphere.Infrastructure --startup-project src/CineSphere.Api
-dotnet ef database update --project src/CineSphere.Infrastructure --startup-project src/CineSphere.Api
+cd src/cinesphere-web
+npx playwright install chromium
+npx playwright test
 ```
 
-### 4. Run
 
-```bash
-dotnet run --project src/CineSphere.Api
-```
+Tests cover: register → login → search → log movie → status post → react → comment → logout
 
-Swagger UI: `http://localhost:5000/swagger`
+---
 
-## 📡 Social Feed Query Flow
+## 📁 Project Structure
 
 ```
-GET /api/feed
-  └─ GetSocialFeedQueryHandler
-       ├─ 1. Query UserFollows → get FolloweeIds
-       ├─ 2. Include current user + followed users' Posts
-       ├─ 3. Order by CreatedAt DESC, paginate
-       ├─ 4. For MovieLogPosts → inject TMDB poster/metadata via ITmdbService
-       └─ 5. Return SocialFeedResponse<PostDto[]>
+CineSphere/
+├── src/
+│   ├── CineSphere.Domain/          Entities: User, Post hierarchy, Comment, Reaction, UserFollow
+│   ├── CineSphere.Application/    CQRS: Queries + Commands, MediatR handlers, DTOs, Interfaces
+│   ├── CineSphere.Infrastructure/  EF Core DbContext, TMDB Service, Configurations
+│   ├── CineSphere.Api/            Controllers, Program.cs, JWT Auth, Swagger
+│   └── cinesphere-web/             Next.js 15 React App
+│       ├── src/app/                Pages: /(main)/feed, search, profile, login, register
+│       ├── src/components/         Feed (PostCard, CreatePostModal), Layout (Navbar)
+│       ├── src/lib/                API client, Zustand store, TypeScript types
+│       └── tests/                  Playwright E2E tests
+├── docker-compose.yml             Postgres + API + Web in one command
+└── README.md
 ```
 
-## 🔐 Auth Flow
 
-- JWT Bearer tokens via `AddIdentityApiEndpoints<ApplicationUser>()`
-- `ICurrentUserService` extracts `User.FindFirst(ClaimTypes.NameIdentifier)?.Value` from `HttpContext`
-- All `[Authorize]` endpoints automatically validate the JWT
+---
+
+## 🎨 UI Theme
+
+Inspired by Letterboxd's cinematic aesthetic:
+
+- **Background:** `#0d1117` deep dark
+- **Surface:** `#161b22`
+- **Primary/Gold:** `#f5c518`
+- **Accent/Red:** `#e50914`
+- **Text:** `#e6edf3`
+- **Muted:** `#8b949e`
+- **Bebas Neue** display font for headings
+
+---
 
 ## 📝 Commit History
 
-| # | Commit | Description |
-|---|---|---|
-| 1 | `feat(Domain)` | Domain entities — ApplicationUser, Post hierarchy, Comment, Reaction, UserFollow |
-| 2 | `feat(CQRS+EF)` | EF Core DbContext (TPH), CQRS Social Feed handler, TmdbService, FeedController |
-| 3 | `feat(Commands)` | CQRS Commands, API Controllers, Program.cs wiring |
-| 4 | `fix(core)` | Corrected DbContext, handlers, PostId types, navigation loading |
-| 5 | `fix(controllers)` | Rewrote all API controllers with proper DTOs and [Authorize] |
-| 6 | `fix(movies)` | TMDB search, MovieLogPost enrichment, AddListPost, CreateCustomList |
-| 7 | `feat(search)` | MoviesController, ListsController, SearchMovies query |
-| 8 | `fix(search)` | Corrected ITmdbService interface, TmdbService, SearchMoviesQuery |
-| 9 | `docs(README)` | Full documentation, architecture overview, API reference |
+| # | Feature |
+|---|---|
+| 1 | Domain entities (ApplicationUser, Post, Comment, Reaction, UserFollow) |
+| 2 | EF Core DbContext (TPH inheritance), CQRS Social Feed handler, FeedController |
+| 3 | CQRS Commands (CreateMovieLog, CreateStatus, ToggleReaction, AddComment, FollowUser) |
+| 4 | Fixed handlers, DbContext, navigation loading, PostId types |
+| 5 | Rewrote API controllers with `[Authorize]`, DTOs |
+| 6 | TMDB search, MovieLogPost enrichment, CreateCustomList |
+| 7 | MoviesController, ListsController |
+| 8 | Corrected ITmdbService interface, SearchMoviesQuery |
+| 9 | Added auth (JWT), UsersController, FollowsController, Program.cs DI |
+| 10 | Playwright E2E tests |
+| 11 | **Frontend** — Next.js 15 full web app: auth, feed, search, post modal, profile |
+| 12 | Docker Compose + Dockerfiles |
