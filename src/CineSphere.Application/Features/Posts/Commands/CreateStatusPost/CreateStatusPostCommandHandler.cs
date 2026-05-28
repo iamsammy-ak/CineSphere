@@ -1,9 +1,16 @@
-using CineSphere.Application.Common.Interfaces;
 using CineSphere.Application.Common.Models;
+using CineSphere.Application.Common.Interfaces;
 using CineSphere.Domain.Entities;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CineSphere.Application.Features.Posts.Commands.CreateStatusPost;
+
+public record CreateStatusPostCommand(
+    string UserId,
+    string Content,
+    bool IsSpoiler
+) : IRequest<PostDto>;
 
 public class CreateStatusPostCommandHandler : IRequestHandler<CreateStatusPostCommand, PostDto>
 {
@@ -21,22 +28,22 @@ public class CreateStatusPostCommandHandler : IRequestHandler<CreateStatusPostCo
             Id = Guid.NewGuid(),
             UserId = request.UserId,
             Content = request.Content,
-            IsSpoiler = request.IsSpoiler,
+            IsSpoiler = false,
             CreatedAt = DateTime.UtcNow,
             CommentCount = 0,
             ReactionCount = 0
         };
 
-        _context.StatusPosts.Add(post);
+        _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var user = await _context.Users.FindAsync([post.UserId], cancellationToken);
+        var user = await _context.Users.FindAsync(new object[] { request.UserId }, cancellationToken);
 
         return new PostDto
         {
             Id = post.Id,
             UserId = post.UserId,
-            UserDisplayName = user?.DisplayName ?? "Unknown",
+            UserDisplayName = user?.UserName ?? request.UserId,
             UserAvatarUrl = user?.AvatarUrl,
             CreatedAt = post.CreatedAt,
             Content = post.Content,

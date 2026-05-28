@@ -23,7 +23,6 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
         base.OnModelCreating(modelBuilder);
 
         // === Post Inheritance (TPH - Table Per Hierarchy) ===
-        // EF Core will create a single "Posts" table with a discriminator column
         modelBuilder.Entity<Post>(entity =>
         {
             entity.HasKey(p => p.Id);
@@ -36,28 +35,20 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
                 .HasForeignKey(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Configure TPH discriminator
             entity.HasDiscriminator<string>("PostType")
                 .HasValue<MovieLogPost>("MovieLog")
                 .HasValue<StatusPost>("Status")
                 .HasValue<ListPost>("List");
         });
 
-        // === MovieLogPost specific properties ===
         modelBuilder.Entity<MovieLogPost>(entity =>
         {
             entity.Property(mlp => mlp.Rating).HasPrecision(3, 1);
-            entity.Property(mlp => mlp.TmdbMovieId);
             entity.Ignore(mlp => mlp.Movie);
         });
 
-        // === StatusPost ===
-        modelBuilder.Entity<StatusPost>(entity =>
-        {
-            // No extra properties — inherits everything from Post
-        });
+        modelBuilder.Entity<StatusPost>(entity => { });
 
-        // === ListPost ===
         modelBuilder.Entity<ListPost>(entity =>
         {
             entity.HasOne(lp => lp.List)
@@ -66,7 +57,6 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // === CustomList ===
         modelBuilder.Entity<CustomList>(entity =>
         {
             entity.HasKey(cl => cl.Id);
@@ -74,7 +64,6 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
             entity.Property(cl => cl.Description).HasMaxLength(1000);
         });
 
-        // === Comment ===
         modelBuilder.Entity<Comment>(entity =>
         {
             entity.HasKey(c => c.Id);
@@ -92,7 +81,6 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // === Reaction ===
         modelBuilder.Entity<Reaction>(entity =>
         {
             entity.HasKey(r => r.Id);
@@ -109,7 +97,6 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // === UserFollow (Many-to-Many Self-Referencing) ===
         modelBuilder.Entity<UserFollow>(entity =>
         {
             entity.HasKey(uf => new { uf.FollowerId, uf.FolloweeId });
@@ -125,7 +112,6 @@ public class CineSphereDbContext : DbContext, IApplicationDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // === ApplicationUser ===
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
             entity.Property(u => u.DisplayName).HasMaxLength(100);

@@ -1,11 +1,22 @@
-using CineSphere.Application.Common.Interfaces;
 using CineSphere.Application.Common.Models;
+using CineSphere.Application.Common.Interfaces;
 using CineSphere.Domain.Entities;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CineSphere.Application.Features.Posts.Commands.CreateMovieLogPost;
 
-public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPostCommand, PostDto>
+public record CreateMovieLogPostCommand(
+    string UserId,
+    int TmdbMovieId,
+    decimal Rating,
+    DateTime WatchedDate,
+    bool IsRewatch,
+    string? Content,
+    bool IsSpoiler
+) : IRequest<MovieLogPostDto>;
+
+public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPostCommand, MovieLogPostDto>
 {
     private readonly IApplicationDbContext _context;
     private readonly ITmdbService _tmdbService;
@@ -16,7 +27,7 @@ public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPo
         _tmdbService = tmdbService;
     }
 
-    public async Task<PostDto> Handle(CreateMovieLogPostCommand request, CancellationToken cancellationToken)
+    public async Task<MovieLogPostDto> Handle(CreateMovieLogPostCommand request, CancellationToken cancellationToken)
     {
         var post = new MovieLogPost
         {
@@ -33,17 +44,16 @@ public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPo
             ReactionCount = 0
         };
 
-        _context.MovieLogPosts.Add(post);
+        _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var movie = await _tmdbService.GetMovieByIdAsync(request.TmdbMovieId, cancellationToken);
-        var user = await _context.Users.FindAsync([post.UserId], cancellationToken);
+        var user = await _context.Users.FindAsync(new object[] { request.UserId }, cancellationToken);
 
-        return new MovieLogPostDto
+        var dto = new MovieLogPostDto
         {
             Id = post.Id,
             UserId = post.UserId,
-            UserDisplayName = user?.DisplayName ?? "Unknown",
+            UserDisplayName = user?.UserName ?? request.UserId,
             UserAvatarUrl = user?.AvatarUrl,
             CreatedAt = post.CreatedAt,
             Content = post.Content,
@@ -54,8 +64,11 @@ public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPo
             TmdbMovieId = post.TmdbMovieId,
             Rating = post.Rating,
             WatchedDate = post.WatchedDate,
-            IsRewatch = post.IsRewatch,
-            Movie = movie
+            IsRewatch = post.IsRewatch
         };
+
+        dto.Movie = await _tmdbService.GetMovieByIdAsync(post.TmdbMovieId, cancellationToken);
+
+        return dto;
     }
 }

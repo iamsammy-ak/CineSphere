@@ -1,7 +1,8 @@
+using CineSphere.Application.Common.Interfaces;
 using CineSphere.Application.Common.Models;
-using CineSphere.Application.Features.SocialFeed.Queries;
 using CineSphere.Domain.Entities;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CineSphere.Application.Features.SocialFeed.Queries;
 
@@ -22,23 +23,24 @@ public class GetSocialFeedQueryHandler : IRequestHandler<GetSocialFeedQuery, Soc
 
     public async Task<SocialFeedResponse> Handle(GetSocialFeedQuery request, CancellationToken cancellationToken)
     {
-        // Get IDs of users the current user follows
         var followingIds = await _context.UserFollows
             .Where(uf => uf.FollowerId == request.UserId)
             .Select(uf => uf.FolloweeId)
             .ToListAsync(cancellationToken);
 
-        var allPostIds = new List<string> { request.UserId };
-        allPostIds.AddRange(followingIds);
+        var allUserIds = new List<string> { request.UserId };
+        allUserIds.AddRange(followingIds);
 
-        var query = _context.Posts
-            .Where(p => allPostIds.Contains(p.UserId))
-            .OrderByDescending(p => p.CreatedAt);
+        var totalCount = await _context.Posts
+            .Where(p => allUserIds.Contains(p.UserId))
+            .CountAsync(cancellationToken);
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var totalPages = (int)Math.Ceiling((double)totalCount / request.PageSize);
+        var totalPages = totalCount == 0 ? 1 : (int)Math.Ceiling((double)totalCount / request.PageSize);
 
-        var posts = await query
+        var posts = await _context.Posts
+            .Where(p => allUserIds.Contains(p.UserId))
+            .Include(p => p.User)
+            .OrderByDescending(p => p.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
@@ -47,7 +49,25 @@ public class GetSocialFeedQueryHandler : IRequestHandler<GetSocialFeedQuery, Soc
 
         foreach (var post in posts)
         {
-            var dto = MapPostToDto(post);
+            var dto = new PostDto
+            {
+                Id = post.Id,
+                UserId = post.UserId,
+                UserDisplayName = post.User?.UserName ?? post.UserId,
+                UserAvatarUrl = post.User?.AvatarUrl,
+                CreatedAt = post.CreatedAt,
+                Content = post.Content,
+                IsSpoiler = post.IsSpoiler,
+                CommentCount = post.CommentCount,
+                ReactionCount = post.ReactionCount,
+                PostType = post switch
+                {
+                    MovieLogPost => "MovieLog",
+                    StatusPost => "Status",
+                    ListPost => "List",
+                    _ => "Unknown"
+                }
+            };
 
             if (post is MovieLogPost mlp)
             {
@@ -58,28 +78,5 @@ public class GetSocialFeedQueryHandler : IRequestHandler<GetSocialFeedQuery, Soc
         }
 
         return new SocialFeedResponse(postDtos, request.Page, totalPages, totalCount);
-    }
-
-    private PostDto MapPostToDto(Post post)
-    {
-        return new PostDto
-        {
-            Id = post.Id,
-            UserId = post.UserId,
-            UserDisplayName = post.User.UserName ?? post.UserId,
-            UserAvatarUrl = post.User.AvatarUrl,
-            CreatedAt = post.CreatedAt,
-            Content = post.Content,
-            IsSpoiler = post.IsSpoiler,
-            CommentCount = post.CommentCount,
-            ReactionCount = post.ReactionCount,
-            PostType = post switch
-            {
-                MovieLogPost => "MovieLog",
-                StatusPost => "Status",
-                ListPost => "List",
-                _ => "Unknown"
-            }
-        };
     }
 }

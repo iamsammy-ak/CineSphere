@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CineSphere.Application.Features.Follows.Commands.FollowUser;
 
+public record FollowUserCommand(string FollowerId, string FolloweeId) : IRequest<bool>;
+
 public class FollowUserCommandHandler : IRequestHandler<FollowUserCommand, bool>
 {
     private readonly IApplicationDbContext _context;
@@ -16,30 +18,30 @@ public class FollowUserCommandHandler : IRequestHandler<FollowUserCommand, bool>
 
     public async Task<bool> Handle(FollowUserCommand request, CancellationToken cancellationToken)
     {
-        if (string.Equals(request.FollowerId, request.FolloweeId, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Users cannot follow themselves.");
+        if (request.FollowerId == request.FolloweeId)
+            return false;
 
-        var existingFollow = await _context.UserFollows
+        var existing = await _context.UserFollows
             .FirstOrDefaultAsync(uf => uf.FollowerId == request.FollowerId && uf.FolloweeId == request.FolloweeId, cancellationToken);
 
-        if (existingFollow != null)
+        if (existing != null)
         {
-            // Already following → unfollow (toggle off)
-            _context.UserFollows.Remove(existingFollow);
+            _context.UserFollows.Remove(existing);
             await _context.SaveChangesAsync(cancellationToken);
             return false;
         }
-
-        // Not following → create new follow
-        var follow = new UserFollow
+        else
         {
-            FollowerId = request.FollowerId,
-            FolloweeId = request.FolloweeId,
-            CreatedAt = DateTime.UtcNow
-        };
+            var follow = new UserFollow
+            {
+                FollowerId = request.FollowerId,
+                FolloweeId = request.FolloweeId,
+                CreatedAt = DateTime.UtcNow
+            };
 
-        _context.UserFollows.Add(follow);
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
+            _context.UserFollows.Add(follow);
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
     }
 }
