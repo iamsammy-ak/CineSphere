@@ -38,6 +38,13 @@ public class CommentDto
 public class ReactionDto
 {
     public Guid Id { get; set; }
-    public string UserId { get; set; } = string.Empty;
+    public string UserId { get; set; }
     public ReactionType Type { get; set; }
+}
+
+public class ReactionResult
+{
+    public bool IsReacted { get; set; }
+    public int TotalReactions { get; set; }
+    public ReactionType? CurrentUserReaction { get; set; }
 }
