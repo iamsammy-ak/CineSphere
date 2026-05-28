@@ -1,93 +1,103 @@
-using CineSphere.Api.Controllers;
 using CineSphere.Application.Common.Interfaces;
-using CineSphere.Application.Features.SocialFeed.Queries;
+using CineSphere.Application.Features.Posts.Commands.CreateMovieLogPost;
+using CineSphere.Application.Features.Posts.Commands.CreateStatusPost;
+using CineSphere.Application.Features.Posts.Queries;
+using CineSphere.Application.Features.Movies.Queries;
+using CineSphere.Application.Features.Reactions.Commands.ToggleReaction;
+using CineSphere.Application.Features.Comments.Commands.AddComment;
+using CineSphere.Application.Features.Follows.Commands.FollowUser;
+using CineSphere.Application.Features.Follows.Queries;
+using CineSphere.Domain.Entities;
 using CineSphere.Infrastructure.Data;
 using CineSphere.Infrastructure.External;
+using CineSphere.Api.Services;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Database
-builder.Services.AddDbContextPool<CineSphereDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// === JWT Auth ===
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "CineSphereSuperSecretKeyThatShouldBeAtLeast32Characters!";
 
-// Identity
-builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
-    .AddEntityFrameworkStores<ApplicationUserDbContext>();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "CineSphere.Api",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "CineSphere.Api",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
 
-// Authentication
-builder.Services.AddAuthentication(options =>
+// === DbContext ===
+var connString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Host=localhost;Database=cinesphere;Username=postgres;Password=postgres";
+
+builder.Services.AddDbContext<CineSphereDbContext>(options =>
+    options.UseNpgsql(connString));
+
+builder.Services.AddDbContext<ApplicationUserDbContext>(options =>
+    options.UseNpgsql(connString));
+
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 6;
 })
-.AddJwtBearer(options =>
+    .AddEntityFrameworkStores<ApplicationUserDbContext>()
+    .AddDefaultTokenProviders();
+
+// === MediatR ===
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(GetSocialFeedQuery).Assembly));
+
+// === Services ===
+builder.Services.AddHttpClient<TmdbService>();
+builder.Services.AddScoped<ITmdbService>(sp =>
 {
-    options.Authority = builder.Configuration["Jwt:Authority"];
-    options.Audience = builder.Configuration["Jwt:Audience"];
+    var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var apiKey = sp.GetRequiredService<IConfiguration>()["Tmdb:ApiKey"] ?? "";
+    return new TmdbService(httpFactory, apiKey);
 });
 
-// MediatR
-builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(GetSocialFeedQuery).Assembly));
-
-// Application services
-builder.Services.AddScoped<ITmdbService, TmdbService>();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IApplicationDbContext>(sp =>
+    sp.GetRequiredService<CineSphereDbContext>());
 
+// === CORS ===
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
+// === Controllers ===
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "CineSphere API",
-        Version = "v1",
-        Description = "Social network for cinephiles"
-    });
-
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter your JWT token"
-    });
-
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseHttpsRedirection();
+// === Middleware ===
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-app.MapIdentityEndpoints<ApplicationUser>();
 
 app.Run();

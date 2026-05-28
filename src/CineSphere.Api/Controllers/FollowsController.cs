@@ -1,8 +1,9 @@
 using CineSphere.Application.Common.Interfaces;
-using CineSphere.Application.Features.Follows.Commands.FollowUser;
+using CineSphere.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CineSphere.Api.Controllers;
 
@@ -11,32 +12,28 @@ namespace CineSphere.Api.Controllers;
 [Authorize]
 public class FollowsController : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
 
-    public FollowsController(IMediator mediator, ICurrentUserService currentUserService)
+    public FollowsController(IApplicationDbContext context, ICurrentUserService currentUserService)
     {
-        _mediator = mediator;
+        _context = context;
         _currentUserService = currentUserService;
     }
 
-    [HttpPost]
-    public async Task<IActionResult> ToggleFollow([FromBody] FollowUserRequest request)
+    [HttpGet("{userId}/follow-status")]
+    public async Task<IActionResult> GetFollowStatus(string userId)
     {
-        var userId = _currentUserService.GetUserId();
-        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        var myId = _currentUserService.GetUserId() ?? "";
+        if (string.IsNullOrEmpty(myId)) return Unauthorized();
 
-        if (userId == request.TargetUserId)
-            return BadRequest(new { message = "You cannot follow yourself." });
+        var isFollowing = await _context.UserFollows
+            .AnyAsync(uf => uf.FollowerId == myId && uf.FolloweeId == userId);
 
-        var command = new FollowUserCommand(userId, request.TargetUserId);
-        var isFollowing = await _mediator.Send(command);
+        var followersCount = await _context.UserFollows.CountAsync(uf => uf.FolloweeId == userId);
+        var followingCount = await _context.UserFollows.CountAsync(uf => uf.FollowerId == userId);
+        var filmCount = await _context.Posts.CountAsync(p => p.UserId == userId);
 
-        return Ok(new { isFollowing });
+        return Ok(new { isFollowing, followersCount, followingCount, filmCount });
     }
-}
-
-public class FollowUserRequest
-{
-    public string TargetUserId { get; set; } = string.Empty;
 }
