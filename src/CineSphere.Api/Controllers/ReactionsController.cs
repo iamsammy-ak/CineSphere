@@ -1,4 +1,6 @@
+using CineSphere.Application.Common.Interfaces;
 using CineSphere.Application.Features.Reactions.Commands.ToggleReaction;
+using CineSphere.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,34 +8,33 @@ using Microsoft.AspNetCore.Mvc;
 namespace CineSphere.Api.Controllers;
 
 [ApiController]
-[Route("api/reactions")]
+[Route("api/[controller]")]
 [Authorize]
 public class ReactionsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ICurrentUserService _currentUserService;
 
-    public ReactionsController(IMediator mediator)
+    public ReactionsController(IMediator mediator, ICurrentUserService currentUserService)
     {
         _mediator = mediator;
+        _currentUserService = currentUserService;
     }
 
     [HttpPost("toggle")]
-    public async Task<IActionResult> ToggleReaction([FromBody] ToggleReactionCommand command, CancellationToken cancellationToken)
+    public async Task<IActionResult> ToggleReaction([FromBody] ToggleReactionRequest request)
     {
-        if (string.IsNullOrEmpty(command.UserId))
-            return BadRequest("UserId is required.");
+        var userId = _currentUserService.GetUserId();
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (command.PostId == Guid.Empty)
-            return BadRequest("PostId is required.");
-
-        try
-        {
-            var result = await _mediator.Send(command, cancellationToken);
-            return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
+        var command = new ToggleReactionCommand(userId, request.PostId, request.Type);
+        var result = await _mediator.Send(command);
+        return Ok(result);
     }
+}
+
+public class ToggleReactionRequest
+{
+    public Guid PostId { get; set; }
+    public ReactionType Type { get; set; }
 }
