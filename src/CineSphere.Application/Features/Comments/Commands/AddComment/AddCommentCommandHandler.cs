@@ -1,4 +1,3 @@
-using CineSphere.Application.Common.Models.CommentDto;
 using CineSphere.Application.Common.Interfaces;
 using CineSphere.Domain.Entities;
 using MediatR;

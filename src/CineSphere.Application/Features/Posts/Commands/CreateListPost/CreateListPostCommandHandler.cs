@@ -3,31 +3,37 @@ using CineSphere.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace CineSphere.Application.Features.Posts.Commands.CreateStatusPost;
+namespace CineSphere.Application.Features.Posts.Commands.CreateListPost;
 
-public record CreateStatusPostCommand(
+public record CreateListPostCommand(
     string UserId,
-    string Content,
+    Guid ListId,
+    string? Content,
     bool IsSpoiler
 ) : IRequest<PostDto>;
 
-public class CreateStatusPostCommandHandler : IRequestHandler<CreateStatusPostCommand, PostDto>
+public class CreateListPostCommandHandler : IRequestHandler<CreateListPostCommand, PostDto>
 {
     private readonly IApplicationDbContext _context;
 
-    public CreateStatusPostCommandHandler(IApplicationDbContext context)
+    public CreateListPostCommandHandler(IApplicationDbContext context)
     {
         _context = context;
     }
 
-    public async Task<PostDto> Handle(CreateStatusPostCommand request, CancellationToken cancellationToken)
+    public async Task<PostDto> Handle(CreateListPostCommand request, CancellationToken cancellationToken)
     {
-        var post = new StatusPost
+        var list = await _context.CustomLists.FindAsync(new object[] { request.ListId }, cancellationToken);
+        if (list == null)
+            throw new InvalidOperationException($"Custom list with ID {request.ListId} not found.");
+
+        var post = new ListPost
         {
             Id = Guid.NewGuid(),
             UserId = request.UserId,
+            ListId = request.ListId,
             Content = request.Content,
-            IsSpoiler = false,
+            IsSpoiler = request.IsSpoiler,
             CreatedAt = DateTime.UtcNow,
             CommentCount = 0,
             ReactionCount = 0
@@ -35,6 +41,7 @@ public class CreateStatusPostCommandHandler : IRequestHandler<CreateStatusPostCo
 
         _context.Posts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
+
 
         var user = await _context.Users.FindAsync(new object[] { request.UserId }, cancellationToken);
 
@@ -49,7 +56,7 @@ public class CreateStatusPostCommandHandler : IRequestHandler<CreateStatusPostCo
             IsSpoiler = post.IsSpoiler,
             CommentCount = post.CommentCount,
             ReactionCount = post.ReactionCount,
-            PostType = "Status"
+            PostType = "List"
         };
     }
 }

@@ -1,4 +1,3 @@
-using CineSphere.Application.Common.Models;
 using CineSphere.Application.Common.Interfaces;
 using CineSphere.Domain.Entities;
 using MediatR;
@@ -48,8 +47,9 @@ public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPo
         await _context.SaveChangesAsync(cancellationToken);
 
         var user = await _context.Users.FindAsync(new object[] { request.UserId }, cancellationToken);
+        var movie = await _tmdbService.GetMovieByIdAsync(request.TmdbMovieId, cancellationToken);
 
-        var dto = new MovieLogPostDto
+        return new MovieLogPostDto
         {
             Id = post.Id,
             UserId = post.UserId,
@@ -64,11 +64,8 @@ public class CreateMovieLogPostCommandHandler : IRequestHandler<CreateMovieLogPo
             TmdbMovieId = post.TmdbMovieId,
             Rating = post.Rating,
             WatchedDate = post.WatchedDate,
-            IsRewatch = post.IsRewatch
+            IsRewatch = post.IsRewatch,
+            Movie = movie
         };
-
-        dto.Movie = await _tmdbService.GetMovieByIdAsync(post.TmdbMovieId, cancellationToken);
-
-        return dto;
     }
 }
