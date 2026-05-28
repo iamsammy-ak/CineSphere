@@ -4,7 +4,6 @@ using System.Text.Json;
 
 namespace CineSphere.Infrastructure.External;
 
-
 public class TmdbService : ITmdbService
 {
     private readonly HttpClient _httpClient;
@@ -26,28 +25,22 @@ public class TmdbService : ITmdbService
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var tmdbResponse = await JsonSerializer.DeserializeAsync<TmdbMovieRaw>(stream, options, cancellationToken);
-
-            if (tmdbResponse == null) return null;
+            var raw = await JsonSerializer.DeserializeAsync<TmdbMovieRaw>(stream, options, cancellationToken);
+            if (raw == null) return null;
 
             return new TmdbMovieDto
             {
-                Id = tmdbResponse.Id,
-                Title = tmdbResponse.Title ?? string.Empty,
-                PosterPath = tmdbResponse.PosterPath != null
-                    ? $"https://image.tmdb.org/t/p/w500{tmdbResponse.PosterPath}"
-                    : null,
-                Overview = tmdbResponse.Overview,
-                VoteCount = tmdbResponse.VoteCount
+                Id = raw.Id,
+                Title = raw.Title ?? string.Empty,
+                PosterPath = raw.PosterPath != null ? $"https://image.tmdb.org/t/p/w500{raw.PosterPath}" : null,
+                Overview = raw.Overview,
+                VoteCount = raw.VoteCount
             };
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 
-    public async Task<TmdbSearchResponse?> SearchMoviesAsync(string query, int page, CancellationToken cancellationToken)
+    public async Task<TmdbSearchResult?> SearchMoviesAsync(string query, int page, CancellationToken cancellationToken)
     {
         try
         {
@@ -57,29 +50,24 @@ public class TmdbService : ITmdbService
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var searchResult = await JsonSerializer.DeserializeAsync<TmdbSearchRaw>(stream, options, cancellationToken);
+            var searchRaw = await JsonSerializer.DeserializeAsync<TmdbSearchRaw>(stream, options, cancellationToken);
+            if (searchRaw == null) return null;
 
-            if (searchResult == null) return null;
-
-            return new TmdbSearchResponse(
-                searchResult.Results.Select(r => new TmdbMovieDto
+            return new TmdbSearchResult
+            {
+                Results = searchRaw.Results.Select(r => new TmdbMovieDto
                 {
                     Id = r.Id,
                     Title = r.Title ?? string.Empty,
-                    PosterPath = r.PosterPath != null
-                        ? $"https://image.tmdb.org/t/p/w500{r.PosterPath}"
-                        : null,
+                    PosterPath = r.PosterPath != null ? $"https://image.tmdb.org/t/p/w500{r.PosterPath}" : null,
                     Overview = r.Overview,
                     VoteCount = r.VoteCount
                 }).ToList(),
-                searchResult.TotalPages,
-                searchResult.TotalResults
-            );
+                TotalPages = searchRaw.TotalPages,
+                TotalResults = searchRaw.TotalResults
+            };
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 
     private class TmdbMovieRaw
