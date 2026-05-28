@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cinesphere_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: cinemasphere_dev_password_2024
+      POSTGRES_DB: cinesphere
+    ports:
+      - '5432:5432'
+    volumes:
+      - cinesphere_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    container_name: cinesphere_api
+    build:
+      context: .
+      dockerfile: src/CineSphere.Api/Dockerfile
+    environment:
+      ConnectionStrings__DefaultConnection: 'Host=db;Database=cinesphere;Username=postgres;Password=cinemasphere_dev_password_2024'
+      Tmdb__ApiKey: '${TMDB_API_KEY}'
+      Jwt__Key: 'CineSphereSuperSecretKeyThatShouldBeAtLeast32Characters!'
+      Jwt__Issuer: 'CineSphere.Api'
+      Jwt__Audience: 'CineSphere.Api'
+    ports:
+      - '5001:5001'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    container_name: cinesphere_web
+    build:
+      context: ./src/cinesphere-web
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: 'http://localhost:5001'
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  cinesphere_pgdata:
