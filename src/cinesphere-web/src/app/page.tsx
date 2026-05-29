@@ -9,18 +9,46 @@ import Navbar from '@/components/Layout/Navbar';
 import PostCard from '@/components/Feed/PostCard';
 import CreatePostModal from '@/components/Feed/CreatePostModal';
 import { PostDto } from '@/lib/types';
+import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 
 export default function FeedPage() {
   const { isAuthenticated } = useAuthStore();
   const [page, setPage] = useState(1);
+  const [allPosts, setAllPosts] = useState<PostDto[]>([]);
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['feed', page],
     queryFn: () => api.get('/feed', { params: { page, pageSize: 20 } }).then(r => r.data),
     enabled: isAuthenticated,
     retry: false,
   });
+
+  const hasMore = data ? page < data.totalPages : false;
+  const isLoadingMore = isFetching && page > 1;
+
+  // Accumulate posts across pages
+  if (data?.posts && page === 1) {
+    if (JSON.stringify(data.posts) !== JSON.stringify(allPosts.slice(0, data.posts.length))) {
+      // Reset on page 1
+    }
+  }
+
+  const displayPosts: PostDto[] = page === 1 && data?.posts ? data.posts :
+    (data?.posts ? [...allPosts, ...data.posts.filter((p: PostDto) => !allPosts.some(a => a.id === p.id))] : allPosts);
+
+  // Sync allPosts when page 1 loads
+  if (data?.posts && page === 1 && displayPosts !== allPosts) {
+    setAllPosts(data.posts);
+  }
+
+  const loadMore = () => {
+    if (!isFetching && hasMore) {
+      setPage(p => p + 1);
+    }
+  };
+
+  const sentinelRef = useInfiniteScroll(loadMore, hasMore, isFetching);
 
   if (!isAuthenticated) {
     return (
@@ -78,20 +106,21 @@ export default function FeedPage() {
             <p className="text-sm">Could not load feed. Is the API running?</p>
             <p className="text-xs mt-1" style={{ color: 'var(--cs-muted)' }}>Start: <code>dotnet run --project src/CineSphere.Api</code></p>
           </div>
-        ) : data?.posts?.length > 0 ? (
+        ) : displayPosts.length > 0 ? (
           <div className="space-y-5">
-            {data.posts.map((post: PostDto) => (
+            {displayPosts.map((post: PostDto) => (
               <PostCard key={post.id} post={post} />
             ))}
-            <div className="flex items-center justify-center gap-4 pt-4">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="btn-ghost text-sm py-2 px-4 disabled:opacity-30">← Prev</button>
-              <span className="text-sm font-medium" style={{ color: 'var(--cs-muted)' }}>
-                {data.page} / {data.totalPages}
-              </span>
-              <button onClick={() => setPage(p => p + 1)} disabled={page >= data.totalPages}
-                className="btn-ghost text-sm py-2 px-4 disabled:opacity-30">Next →</button>
-            </div>
+
+            {/* Infinite scroll loading indicator */}
+            {isLoadingMore && (
+              <div className="flex justify-center py-6">
+                <div className="loading-spinner" />
+              </div>
+            )}
+
+            {/* Sentinel div for IntersectionObserver */}
+            <div ref={sentinelRef} className="h-1" />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center">
