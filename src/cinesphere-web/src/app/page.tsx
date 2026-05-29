@@ -1,10 +1,11 @@
 'use client';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Film } from 'lucide-react';
+import { Film } from 'lucide-react';
 import Navbar from '@/components/Layout/Navbar';
 import PostCard from '@/components/Feed/PostCard';
 import CreatePostModal from '@/components/Feed/CreatePostModal';
@@ -24,23 +25,23 @@ export default function FeedPage() {
     retry: false,
   });
 
+  // Accumulate posts as pages load
+  useEffect(() => {
+    if (data?.posts) {
+      if (page === 1) {
+        setAllPosts(data.posts);
+      } else {
+        setAllPosts(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newPosts = data.posts.filter((p: PostDto) => !existingIds.has(p.id));
+          return newPosts.length > 0 ? [...prev, ...newPosts] : prev;
+        });
+      }
+    }
+  }, [data, page]);
+
   const hasMore = data ? page < data.totalPages : false;
   const isLoadingMore = isFetching && page > 1;
-
-  // Accumulate posts across pages
-  if (data?.posts && page === 1) {
-    if (JSON.stringify(data.posts) !== JSON.stringify(allPosts.slice(0, data.posts.length))) {
-      // Reset on page 1
-    }
-  }
-
-  const displayPosts: PostDto[] = page === 1 && data?.posts ? data.posts :
-    (data?.posts ? [...allPosts, ...data.posts.filter((p: PostDto) => !allPosts.some(a => a.id === p.id))] : allPosts);
-
-  // Sync allPosts when page 1 loads
-  if (data?.posts && page === 1 && displayPosts !== allPosts) {
-    setAllPosts(data.posts);
-  }
 
   const loadMore = () => {
     if (!isFetching && hasMore) {
@@ -106,9 +107,9 @@ export default function FeedPage() {
             <p className="text-sm">Could not load feed. Is the API running?</p>
             <p className="text-xs mt-1" style={{ color: 'var(--cs-muted)' }}>Start: <code>dotnet run --project src/CineSphere.Api</code></p>
           </div>
-        ) : displayPosts.length > 0 ? (
+        ) : allPosts.length > 0 ? (
           <div className="space-y-5">
-            {displayPosts.map((post: PostDto) => (
+            {allPosts.map((post: PostDto) => (
               <PostCard key={post.id} post={post} />
             ))}
 
