@@ -10,24 +10,25 @@ public record FollowUserCommand(string FollowerId, string FolloweeId) : IRequest
 public class FollowUserCommandHandler : IRequestHandler<FollowUserCommand, bool>
 {
     private readonly IApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public FollowUserCommandHandler(IApplicationDbContext context)
+    public FollowUserCommandHandler(IApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
-    public async Task<bool> Handle(FollowUserCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(FollowUserCommand request, CancellationToken ct)
     {
-        if (request.FollowerId == request.FolloweeId)
-            return false;
+        if (request.FollowerId == request.FolloweeId) return false;
 
         var existing = await _context.UserFollows
-            .FirstOrDefaultAsync(uf => uf.FollowerId == request.FollowerId && uf.FolloweeId == request.FolloweeId, cancellationToken);
+            .FirstOrDefaultAsync(uf => uf.FollowerId == request.FollowerId && uf.FolloweeId == request.FolloweeId, ct);
 
         if (existing != null)
         {
             _context.UserFollows.Remove(existing);
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.SaveChangesAsync(ct);
             return false;
         }
         else
@@ -40,7 +41,13 @@ public class FollowUserCommandHandler : IRequestHandler<FollowUserCommand, bool>
             };
 
             _context.UserFollows.Add(follow);
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.SaveChangesAsync(ct);
+
+            // Notify the followed user
+            var follower = await _context.Users.FindAsync(new object[] { request.FollowerId }, ct);
+            var followerName = follower?.DisplayName ?? request.FollowerId;
+            await _notificationService.SendAsync(request.FolloweeId, request.FollowerId, "Follow", null, $"started following you");
+
             return true;
         }
     }

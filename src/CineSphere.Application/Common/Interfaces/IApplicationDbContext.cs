@@ -13,6 +13,8 @@ public interface IApplicationDbContext
     DbSet<Reaction> Reactions { get; }
     DbSet<UserFollow> UserFollows { get; }
     DbSet<CustomList> CustomLists { get; }
+    DbSet<Notification> Notifications { get; }
+    DbSet<WatchlistItem> WatchlistItems { get; }
     DbSet<ApplicationUser> Users { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
