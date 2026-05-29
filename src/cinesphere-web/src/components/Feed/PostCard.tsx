@@ -26,11 +26,16 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-export default function PostCard({ post }: { post: PostDto }) {
+interface PostCardProps {
+  post: PostDto;
+  expandedComments?: boolean;
+}
+
+export default function PostCard({ post, expandedComments = false }: PostCardProps) {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuthStore();
   const [revealSpoiler, setRevealSpoiler] = useState(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(expandedComments);
   const [activeReaction, setActiveReaction] = useState<string | null>(null);
 
   const toggleReaction = useMutation({
